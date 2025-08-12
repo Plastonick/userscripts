@@ -48,7 +48,7 @@ function waitForRows (callback, attempts) {
   const json = await res.json()
 
   waitForRows(function () {
-    console.debug('Rows detected, hydrating data')
+    console.debug('Rows detected, hydrating signup data')
 
     if (jQuery('#pacing-category').length === 0) {
       console.debug('Adding category header')
@@ -56,6 +56,17 @@ function waitForRows (callback, attempts) {
       jQuery('#table_event_results_final thead tr')
         .first()
         .prepend('<th id="pacing-category" title="Based on user\'s category division at time of signup">Cat</th>')
+
+      const defaultCategoryNode = `
+<td class="pace-category">
+    <span 
+        class="label label-default label-as-badge" 
+        style="font-size: 14px" 
+        title="Unknown category, user likely late joined"
+    >?</span>
+</td>`
+      jQuery('#table_event_results_final tbody tr')
+        .prepend(defaultCategoryNode)
     }
 
     json.data.forEach(data => {
@@ -70,14 +81,15 @@ function waitForRows (callback, attempts) {
 
       console.debug('Adding category for user', data.zwid, data.name, pacerCategory)
 
+      const categoryCell = `
+<span class="label label-cat-${catClass} label-as-badge" style="font-size:14px;">
+  ${pacerCategory}
+</span>
+`
+
       zwiftUserRow
-        .prepend(`
-<td>
-  <span class="label label-cat-${catClass} label-as-badge" style="font-size:14px;">
-    ${pacerCategory}
-  </span>
-</td>
-`)
+        .children('.pace-category')
+        .html(categoryCell)
     })
   }, 50)
 })()
