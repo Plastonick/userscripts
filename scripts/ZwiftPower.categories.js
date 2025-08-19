@@ -14,7 +14,7 @@ const categoryDivs = {
   10: ['A', 'A'],
   20: ['B', 'B'],
   30: ['C', 'C'],
-  40: ['D', 'D']
+  40: ['D', 'D'],
 }
 
 function waitForRows (callback, attempts) {
@@ -46,11 +46,40 @@ function waitForRows (callback, attempts) {
   const eventId = window.location.href.match(/zid=(\d+)/)[1]
   const res = await fetch(`cache3/results/${eventId}_signups.json`)
   const json = await res.json()
+  const categoryMap = {}
+
+  json.data.forEach(data => {
+    const [catClass, pacerCategory] = categoryDivs[data.div] ?? ['E', 'E']
+
+    categoryMap[data.zwid] = {
+      catClass,
+      pacerCategory,
+      name: data.name
+    }
+  })
+
+  const getPaceNode = (zwid) => {
+    let nodeLabel
+    if (categoryMap.hasOwnProperty(zwid)) {
+      const { catClass, pacerCategory, name } = categoryMap[zwid]
+      console.debug('Building category label for user', zwid, name, pacerCategory)
+
+      nodeLabel = `<span class="label label-cat-${catClass} label-as-badge" style="font-size:14px;">${pacerCategory}</span>`
+    } else {
+      console.debug(`Could not find category for Zwift user ID`, zwid)
+
+      nodeLabel = `<span class="label label-default label-as-badge" style="font-size: 14px" title="Unknown category, user likely late joined">?</span>`
+    }
+
+    return `<td class="pace-category">${nodeLabel}</td>`
+  }
 
   waitForRows(function () {
     console.debug('Rows detected, hydrating signup data')
 
     if (jQuery('#pacing-category').length === 0) {
+      jQuery('#table_event_results_final thead tr')
+
       console.debug('Adding category header')
 
       jQuery('#table_event_results_final thead tr')
@@ -65,32 +94,31 @@ function waitForRows (callback, attempts) {
         title="Unknown category, user likely late joined"
     >?</span>
 </td>`
-      jQuery('#table_event_results_final tbody tr')
-        .prepend(defaultCategoryNode)
-    }
 
-    json.data.forEach(data => {
-      const [catClass, pacerCategory] = categoryDivs[data.div] ?? ['E', 'E']
-      const zwiftUserRow = jQuery(`#table_event_results_final_wrapper tbody a[href$=${data.zwid}]`).closest('tr')
+      const datatable = jQuery('#table_event_results_final').DataTable()
+      const addCategoryCells = () => {
+        datatable.rows().every(function() {
+          const row = jQuery(this.node())
 
-      if (zwiftUserRow.length === 0) {
-        console.debug(`Could not find row for zwift user ${data.name} (${data.zwid})`)
+          // if we've already got the pace category cell, move along
+          if (row.find('td.pace-category').length !== 0) {
+            return
+          }
 
-        return
+          const zwidLink = row.find('.athlete_col a').attr('href')
+          if (zwidLink === undefined) {
+            return
+          }
+
+          const zwid = zwidLink.match(/\d+$/)[0]
+
+          row.prepend(getPaceNode(zwid))
+        })
       }
 
-      console.debug('Adding category for user', data.zwid, data.name, pacerCategory)
-
-      const categoryCell = `
-<span class="label label-cat-${catClass} label-as-badge" style="font-size:14px;">
-  ${pacerCategory}
-</span>
-`
-
-      zwiftUserRow
-        .children('.pace-category')
-        .html(categoryCell)
-    })
+      addCategoryCells()
+      datatable.on('draw', addCategoryCells)
+    }
   }, 50)
 })()
 
